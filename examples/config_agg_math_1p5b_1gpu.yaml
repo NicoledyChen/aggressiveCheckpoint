@@ -1,0 +1,130 @@
+data:
+  # Train on AMC + AIME25, evaluate on AIME (paths can be overridden from CLI).
+  # Default assumes you generated the files under `./agg_data_cross/` (ignored by git).
+  train_files: ./agg_data_cross/train_AMC_AIME25.jsonl
+  val_files: ./agg_data_cross/agg_AIME.jsonl
+  extra_val_files: []
+  prompt_key: problem
+  answer_key: answer
+  image_key: images
+  video_key: videos
+  image_dir: null
+  video_fps: 2.0
+
+  # 1.5B baseline: keep context modest (we also sample candidates).
+  max_prompt_length: 2048
+  max_response_length: 1024
+
+  # Smaller batch defaults for 1 GPU; tune up if you have more GPUs.
+  rollout_batch_size: 64
+  mini_rollout_batch_size: null
+  val_batch_size: 64
+
+  format_prompt: ./examples/format_prompt/agg_math.jinja
+  override_chat_template: null
+  shuffle: true
+  seed: 1
+  min_pixels: 262144
+  max_pixels: 4194304
+  filter_overlong_prompts: true
+
+  # Candidate sampling to avoid long prompts
+  solutions_key: solutions
+  solutions_sample_size_train: 12
+  solutions_sample_size_val: 12
+  solutions_sample_strategy_train: random
+  solutions_sample_strategy_val: first
+  solutions_sample_unique: true
+
+algorithm:
+  adv_estimator: grpo
+  disable_kl: false
+  use_kl_loss: true
+  kl_penalty: low_var_kl
+  kl_coef: 1.0e-2
+  online_filtering: false
+
+worker:
+  actor:
+    global_batch_size: 64
+    micro_batch_size_per_device_for_update: 1
+    micro_batch_size_per_device_for_experience: 2
+    max_grad_norm: 1.0
+    padding_free: true
+    dynamic_batching: true
+    ulysses_size: 1
+    model:
+      model_path: Qwen/Qwen2.5-1.5B-Instruct
+      enable_gradient_checkpointing: true
+      trust_remote_code: false
+      freeze_vision_tower: false
+    optim:
+      lr: 2.0e-6
+      weight_decay: 1.0e-2
+      strategy: adamw
+      lr_warmup_ratio: 0.0
+    fsdp:
+      enable_full_shard: true
+      enable_cpu_offload: false
+      enable_rank0_init: true
+    offload:
+      offload_params: true
+      offload_optimizer: true
+
+  rollout:
+    n: 4
+    temperature: 1.0
+    top_p: 1.0
+    limit_images: 0
+    gpu_memory_utilization: 0.7
+    enforce_eager: false
+    enable_chunked_prefill: false
+    tensor_parallel_size: 1
+    disable_tqdm: false
+    val_override_config:
+      temperature: 0.7
+      top_p: 0.95
+      n: 16
+
+  ref:
+    fsdp:
+      enable_full_shard: true
+      enable_cpu_offload: true
+      enable_rank0_init: true
+    offload:
+      offload_params: false
+
+  reward:
+    reward_function: ./examples/reward_function/agg_math.py:compute_score
+    reward_function_kwargs:
+      format_weight: 0.1
+      selection_weight: 0.2
+
+trainer:
+  total_epochs: 10
+  max_steps: null
+  project_name: easy_r1
+  experiment_name: qwen2_5_1p5b_agg_math_grpo
+  logger: ["file", "wandb"]
+  nnodes: 1
+  n_gpus_per_node: 1
+  max_try_make_batch: 20
+  val_freq: 1
+  val_before_train: true
+  val_only: false
+  val_generations_to_log: 30
+  save_freq: 1
+  save_limit: -1
+  save_model_only: false
+  save_resume_state_only_latest: true
+  merge_sharded_model_to_hf_on_prune: true
+  merge_sharded_model_max_per_save: 1
+  merge_sharded_model_async: true
+  merge_sharded_model_max_concurrent: 1
+  merge_sharded_model_background_nice: 10
+  save_answer_distribution_plots: false
+  save_checkpoint_path: null
+  load_checkpoint_path: null
+  find_last_checkpoint: true
+
+

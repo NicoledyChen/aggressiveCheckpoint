@@ -17,7 +17,7 @@ import os
 import sys
 from collections import defaultdict
 from functools import partial
-from typing import Callable, Optional, Tuple, TypedDict
+from typing import Any, Callable, Optional, Tuple, TypedDict
 
 import torch
 from transformers import PreTrainedTokenizer
@@ -26,10 +26,17 @@ from ...protocol import DataProto
 from .config import RewardConfig
 
 
-class RewardInput(TypedDict):
+class RewardInputBase(TypedDict):
     response: str
     response_length: int
     ground_truth: str
+
+
+class RewardInput(RewardInputBase, total=False):
+    # Optional extra fields forwarded from dataset examples (non-tensor batch).
+    # Aggregation tasks may include the candidate list shown to the model.
+    solutions: Any
+    sample_id: str
 
 
 class RewardScore(TypedDict):
@@ -57,11 +64,15 @@ class SequentialFunctionRewardManagerMixin:
             response_str = self.tokenizer.decode(
                 valid_response_ids, skip_special_tokens=self.config.skip_special_tokens
             )
+            solutions = data.non_tensor_batch["solutions"][i] if "solutions" in data.non_tensor_batch else None
+            sample_id = str(data.non_tensor_batch["sample_id"][i]) if "sample_id" in data.non_tensor_batch else None
             score = self.reward_fn(
                 {
                     "response": response_str,
                     "response_length": cur_response_length,
                     "ground_truth": data.non_tensor_batch["ground_truth"][i],
+                    "solutions": solutions,
+                    "sample_id": sample_id,
                 }
             )
             reward_tensor[i, cur_response_length - 1] = score["overall"]
@@ -84,11 +95,15 @@ class BatchFunctionRewardManagerMixin:
             response_str = self.tokenizer.decode(
                 valid_response_ids, skip_special_tokens=self.config.skip_special_tokens
             )
+            solutions = data.non_tensor_batch["solutions"][i] if "solutions" in data.non_tensor_batch else None
+            sample_id = str(data.non_tensor_batch["sample_id"][i]) if "sample_id" in data.non_tensor_batch else None
             reward_inputs.append(
                 {
                     "response": response_str,
                     "response_length": cur_response_length,
                     "ground_truth": data.non_tensor_batch["ground_truth"][i],
+                    "solutions": solutions,
+                    "sample_id": sample_id,
                 }
             )
 

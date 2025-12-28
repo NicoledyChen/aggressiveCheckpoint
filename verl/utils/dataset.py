@@ -14,6 +14,8 @@
 
 import math
 import os
+import hashlib
+import random
 from collections import defaultdict
 from io import BytesIO
 from typing import Any, Optional, Union
@@ -107,6 +109,11 @@ class RLHFDataset(Dataset):
         max_pixels: Optional[int] = None,
         filter_overlong_prompts: bool = True,
         filter_overlong_prompts_workers: int = 16,
+        seed: int = 1,
+        solutions_key: str = "solutions",
+        solutions_sample_size: Optional[int] = None,
+        solutions_sample_strategy: str = "random",
+        solutions_sample_unique: bool = True,
     ):
         self.tokenizer = tokenizer
         self.processor = processor
@@ -120,6 +127,12 @@ class RLHFDataset(Dataset):
         self.truncation = truncation
         self.min_pixels = min_pixels
         self.max_pixels = max_pixels
+        self.seed = seed
+        self.solutions_key = solutions_key
+        self.solutions_sample_size = solutions_sample_size
+        self.solutions_sample_strategy = solutions_sample_strategy
+        self.solutions_sample_unique = solutions_sample_unique
+        self._sample_counter = 0
 
         if "@" in data_path:
             data_path, data_split = data_path.split("@")
@@ -149,11 +162,72 @@ class RLHFDataset(Dataset):
                 num_proc=filter_overlong_prompts_workers,
             )
 
+    def _sample_solutions(self, example: dict[str, Any], *, dynamic: bool) -> dict[str, Any]:
+        """Return a shallow-copied example with `solutions` optionally down-sampled."""
+        if self.solutions_sample_size is None:
+            return example
+
+        sols = example.get(self.solutions_key, None)
+        if not isinstance(sols, list):
+            return example
+
+        if self.solutions_sample_unique:
+            seen = set()
+            uniq = []
+            for s in sols:
+                # Keep non-str items as-is, but still dedup by their string repr.
+                key = s if isinstance(s, str) else repr(s)
+                if key in seen:
+                    continue
+                seen.add(key)
+                uniq.append(s)
+            sols = uniq
+
+        k = self.solutions_sample_size
+        if k is None or k <= 0 or len(sols) <= k:
+            # still set the (deduped) list back to keep deterministic behavior
+            if sols is not example.get(self.solutions_key):
+                copied = dict(example)
+                copied[self.solutions_key] = sols
+                return copied
+            return example
+
+        # Seed selection.
+        # - For dynamic sampling (train), vary across accesses to the same sample.
+        # - For non-dynamic sampling (val/filter), use a stable seed derived from sample_id (if present).
+        def _stable_hash32(text: str) -> int:
+            # stable across runs/processes (unlike Python's built-in hash)
+            return int(hashlib.md5(text.encode("utf-8")).hexdigest()[:8], 16)
+
+        base = int(self.seed)
+        sid = example.get("sample_id", None)
+        sid_hash = _stable_hash32(str(sid)) if sid is not None else 0
+        if dynamic:
+            self._sample_counter += 1
+            seed = (base * 1000003 + sid_hash + self._sample_counter) & 0xFFFFFFFF
+        else:
+            seed = (base * 1000003 + sid_hash) & 0xFFFFFFFF
+        rng = random.Random(seed)
+
+        if self.solutions_sample_strategy == "first":
+            picked = sols[:k]
+        elif self.solutions_sample_strategy == "random":
+            picked = rng.sample(sols, k)
+        else:
+            raise ValueError(f"Unsupported solutions_sample_strategy: {self.solutions_sample_strategy}")
+
+        copied = dict(example)
+        copied[self.solutions_key] = picked
+        return copied
+
     def _build_messages(self, example: dict[str, Any]) -> list[dict[str, Any]]:
         prompt_str: str = example[self.prompt_key]
         if self.format_prompt:
             format_prompt = Template(self.format_prompt.strip())
-            prompt_str = format_prompt.render(content=prompt_str)
+            # Backward-compatible: historical templates only use `content`.
+            # New templates (e.g. aggregation) may need access to full example fields
+            # such as `example["solutions"]`.
+            prompt_str = format_prompt.render(content=prompt_str, example=example)
 
         if self.image_key in example:
             # https://huggingface.co/docs/transformers/en/tasks/image_text_to_text
@@ -180,6 +254,7 @@ class RLHFDataset(Dataset):
             return [{"role": "user", "content": prompt_str}]
 
     def _filter_overlong_prompts(self, example: dict[str, Any]) -> bool:
+        example = self._sample_solutions(example, dynamic=False)
         messages = self._build_messages(example)
         if self.image_key in example:
             prompt = self.processor.apply_chat_template(messages, add_generation_prompt=True, tokenize=False)
@@ -216,6 +291,7 @@ class RLHFDataset(Dataset):
 
     def __getitem__(self, index):
         example: dict = self.dataset[index]
+        example = self._sample_solutions(example, dynamic=True)
         messages = self._build_messages(example)
         example.pop(self.prompt_key, None)
 
@@ -306,6 +382,8 @@ class RLHFDataset(Dataset):
         example["position_ids"] = position_ids
         example["raw_prompt_ids"] = raw_prompt_ids
         example["ground_truth"] = example.pop(self.answer_key)
-        # provide a stable id for tracking/ensembling/metrics
-        example["sample_id"] = str(index)
+        # Provide a stable id for tracking/ensembling/metrics.
+        # If the underlying dataset already has a `sample_id`, keep it (cast to str).
+        # Otherwise fall back to the dataset index.
+        example["sample_id"] = str(example.get("sample_id", index))
         return example

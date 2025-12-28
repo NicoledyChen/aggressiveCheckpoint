@@ -57,6 +57,14 @@ class DataConfig:
     max_pixels: Optional[int] = 4194304
     filter_overlong_prompts: bool = True
     filter_overlong_prompts_workers: int = 16
+    # Aggregation datasets may include many candidate solutions per sample.
+    # To avoid overlong prompts, we support sampling a subset of `solutions` per access.
+    solutions_key: str = "solutions"
+    solutions_sample_size_train: Optional[int] = None
+    solutions_sample_size_val: Optional[int] = None
+    solutions_sample_strategy_train: str = "random"  # {random, first}
+    solutions_sample_strategy_val: str = "first"  # {random, first}
+    solutions_sample_unique: bool = True
 
     def post_init(self):
         self.image_dir = get_abs_path(self.image_dir, prompt="Image directory")

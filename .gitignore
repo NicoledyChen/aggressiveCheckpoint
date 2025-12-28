@@ -182,3 +182,5 @@ tensorboard_log/
 # data
 images/
 images*
+agg_data_*/
+sampling_64_responses/

@@ -45,6 +45,11 @@ def _build_val_loader(
         min_pixels=config.min_pixels,
         max_pixels=config.max_pixels,
         filter_overlong_prompts=config.filter_overlong_prompts,
+        seed=config.seed,
+        solutions_key=config.solutions_key,
+        solutions_sample_size=config.solutions_sample_size_val,
+        solutions_sample_strategy=config.solutions_sample_strategy_val,
+        solutions_sample_unique=config.solutions_sample_unique,
     )
 
     if config.val_batch_size == -1:
@@ -83,6 +88,11 @@ def create_dataloader(
         max_pixels=config.max_pixels,
         filter_overlong_prompts=config.filter_overlong_prompts,
         filter_overlong_prompts_workers=config.filter_overlong_prompts_workers,
+        seed=config.seed,
+        solutions_key=config.solutions_key,
+        solutions_sample_size=config.solutions_sample_size_train,
+        solutions_sample_strategy=config.solutions_sample_strategy_train,
+        solutions_sample_unique=config.solutions_sample_unique,
     )
     # use sampler for better ckpt resume
     if config.shuffle:

@@ -1,0 +1,20 @@
+{{ content | trim }}
+
+You are given multiple candidate solutions produced by different checkpoints/models for the SAME problem. Some candidates may be incorrect, incomplete, or misleading, and the majority can be wrong.
+
+Your task:
+- Review the candidates, detect mistakes, and synthesize the correct final answer.
+- You may use your own reasoning; do not simply copy the most common answer.
+- You MUST output the reasoning as an internal monologue enclosed in <think> </think>.
+- After </think>, output exactly one line:
+  `Chosen candidate: <id>` where <id> is an integer from 1..N if you believe one candidate is correct,
+  or `Chosen candidate: none` if none of the candidates appears correct.
+- The final answer MUST be in \boxed{}.
+
+Candidate solutions:
+{% for s in example.solutions %}
+[Candidate {{ loop.index }}]
+{{ s | trim }}
+{% endfor %}
+
+
