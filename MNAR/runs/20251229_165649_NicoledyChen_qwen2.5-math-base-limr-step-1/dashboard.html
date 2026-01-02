@@ -1,0 +1,719 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Self-Consistency Dashboard</title>
+    <style>
+      :root {
+        --bg: #0b1020;
+        --panel: #111a33;
+        --muted: #93a4c7;
+        --text: #e8eeff;
+        --good: #3ddc97;
+        --bad: #ff6b6b;
+        --warn: #ffd166;
+        --border: rgba(255, 255, 255, 0.08);
+        --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+          "Courier New", monospace;
+        --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial,
+          "Apple Color Emoji", "Segoe UI Emoji";
+      }
+      body {
+        margin: 0;
+        font-family: var(--sans);
+        background: radial-gradient(1200px 700px at 20% 0%, #1a2550 0%, var(--bg) 55%);
+        color: var(--text);
+      }
+      .wrap {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      .row {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .card {
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02));
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 14px;
+      }
+      .card h2 {
+        margin: 0 0 8px 0;
+        font-size: 14px;
+        color: var(--muted);
+        font-weight: 600;
+        letter-spacing: 0.02em;
+      }
+      .title {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 12px;
+      }
+      .title h1 {
+        margin: 0;
+        font-size: 18px;
+      }
+      .muted {
+        color: var(--muted);
+      }
+      .mono {
+        font-family: var(--mono);
+      }
+      input[type="text"] {
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 10px 12px;
+        color: var(--text);
+        min-width: 320px;
+      }
+      button {
+        background: rgba(61, 220, 151, 0.12);
+        border: 1px solid rgba(61, 220, 151, 0.35);
+        border-radius: 10px;
+        padding: 10px 12px;
+        color: var(--text);
+        cursor: pointer;
+      }
+      button:hover {
+        background: rgba(61, 220, 151, 0.18);
+      }
+      .progress {
+        width: 100%;
+        height: 10px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid var(--border);
+        overflow: hidden;
+      }
+      .progress > div {
+        height: 100%;
+        width: 0%;
+        background: linear-gradient(90deg, rgba(61, 220, 151, 0.9), rgba(61, 220, 151, 0.55));
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12px;
+      }
+      th,
+      td {
+        padding: 10px 8px;
+        border-bottom: 1px solid var(--border);
+        vertical-align: top;
+      }
+      th {
+        text-align: left;
+        color: var(--muted);
+        font-weight: 600;
+      }
+      tr:hover td {
+        background: rgba(255, 255, 255, 0.03);
+      }
+      .pill {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        color: var(--muted);
+        font-size: 11px;
+      }
+      .ok {
+        color: var(--good);
+        border-color: rgba(61, 220, 151, 0.35);
+        background: rgba(61, 220, 151, 0.08);
+      }
+      .bad {
+        color: var(--bad);
+        border-color: rgba(255, 107, 107, 0.35);
+        background: rgba(255, 107, 107, 0.08);
+      }
+      .warn {
+        color: var(--warn);
+        border-color: rgba(255, 209, 102, 0.35);
+        background: rgba(255, 209, 102, 0.08);
+      }
+      .grid2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+      @media (max-width: 900px) {
+        .grid2 {
+          grid-template-columns: 1fr;
+        }
+      }
+      pre {
+        margin: 0;
+        white-space: pre-wrap;
+        word-break: break-word;
+        font-family: var(--mono);
+        font-size: 12px;
+        line-height: 1.35;
+        color: #d7e3ff;
+      }
+      .bar {
+        width: 100%;
+        height: 9px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid var(--border);
+        overflow: hidden;
+      }
+      .bar > div {
+        height: 100%;
+        width: 0%;
+        background: linear-gradient(90deg, rgba(147, 164, 199, 0.9), rgba(147, 164, 199, 0.45));
+      }
+      .bar.ok > div {
+        background: linear-gradient(90deg, rgba(61, 220, 151, 0.95), rgba(61, 220, 151, 0.45));
+      }
+      .small {
+        font-size: 12px;
+      }
+      .clickable {
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="card">
+        <div class="title">
+          <h1>Self-Consistency Dashboard</h1>
+          <div class="muted small" id="clock"></div>
+        </div>
+        <div class="row" style="margin-top: 10px">
+          <div>
+            <div class="muted small">Run path (relative)</div>
+            <div class="row" style="align-items: center; margin-top: 6px">
+              <input id="runInput" type="text" class="mono" placeholder="runs/20251229_130000_model" />
+              <button id="loadBtn">Load</button>
+              <span id="status" class="muted small"></span>
+            </div>
+            <div class="muted small" style="margin-top: 8px">
+              Tip: if you open a run-local copy at <span class="mono">runs/&lt;run_id&gt;/dashboard.html</span>, this auto-loads.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid2" style="margin-top: 12px">
+        <div class="card">
+          <h2>Progress</h2>
+          <div class="progress"><div id="progressFill"></div></div>
+          <div class="row" style="justify-content: space-between; margin-top: 10px">
+            <div class="small" id="progressText">—</div>
+            <div class="small muted" id="currentText">—</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Metrics</h2>
+          <div id="metrics" class="small">—</div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top: 12px">
+        <h2>Samples</h2>
+        <div class="muted small" style="margin-bottom: 8px">
+          Click a row to inspect details. Table updates when new samples finish.
+        </div>
+        <div style="overflow: auto; max-height: 420px; border: 1px solid var(--border); border-radius: 12px">
+          <table id="samplesTable">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>id</th>
+                <th>subject</th>
+                <th>lvl</th>
+                <th>pass@1</th>
+                <th>first hit</th>
+                <th>pass@8</th>
+                <th>pass@16</th>
+                <th>pass@32</th>
+                <th>pass@64</th>
+                <th>pass@128</th>
+                <th>pass@256</th>
+              </tr>
+            </thead>
+            <tbody id="samplesBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top: 12px">
+        <h2>Details</h2>
+        <div id="details" class="small muted">Select a sample above.</div>
+      </div>
+    </div>
+
+    <script>
+      const $ = (id) => document.getElementById(id);
+
+      function fmtPct(x) {
+        if (x === null || x === undefined) return "—";
+        return (x * 100).toFixed(1) + "%";
+      }
+
+      function pill(text, kind) {
+        const cls = kind ? `pill ${kind}` : "pill";
+        return `<span class="${cls}">${text}</span>`;
+      }
+
+      function nowClock() {
+        const d = new Date();
+        $("clock").textContent = d.toLocaleString();
+      }
+
+      setInterval(nowClock, 500);
+      nowClock();
+
+      let basePath = null;
+      let lastCompleted = -1;
+      let records = [];
+      let recordByIndex = new Map();
+      let selectedIndex = null;
+
+      function join(base, p) {
+        base = base.replace(/\/+$/, "");
+        if (p.startsWith("/")) p = p.slice(1);
+        return `${base}/${p}`;
+      }
+
+      async function fetchNoCache(url) {
+        return fetch(url + (url.includes("?") ? "&" : "?") + "_=" + Date.now(), { cache: "no-store" });
+      }
+
+      async function detectBasePath() {
+        // 1) If we are in a run folder, progress.json exists next to this HTML.
+        try {
+          const r = await fetchNoCache("progress.json");
+          if (r.ok) return ".";
+        } catch (e) {}
+
+        // 2) If query param run exists, use it.
+        const qs = new URLSearchParams(window.location.search);
+        const run = qs.get("run");
+        if (run) return run;
+
+        // 3) Try to auto-pick latest run by parsing python http.server directory listing.
+        try {
+          const r = await fetchNoCache("runs/");
+          if (!r.ok) return null;
+          const html = await r.text();
+          const hrefs = [...html.matchAll(/href="([^"]+\/)"/g)].map((m) => m[1]);
+          const dirs = hrefs
+            .filter((h) => /^\d{8}_\d{6}_/.test(h))
+            .map((h) => h.replace(/\/$/, ""))
+            .sort();
+          if (!dirs.length) return null;
+          return join("runs", dirs[dirs.length - 1]);
+        } catch (e) {
+          return null;
+        }
+      }
+
+      async function loadBasePath(p) {
+        basePath = p.replace(/\/+$/, "");
+        $("status").textContent = `Loading from ${basePath}`;
+        $("runInput").value = basePath;
+        lastCompleted = -1;
+        records = [];
+        recordByIndex = new Map();
+        selectedIndex = null;
+        $("details").textContent = "Select a sample above.";
+        await tick(); // immediate
+      }
+
+      function renderProgress(prog) {
+        const total = prog.total || 0;
+        const done = prog.completed || 0;
+        const errors = prog.errors || 0;
+        const pct = total ? Math.min(100, (done / total) * 100) : 0;
+        $("progressFill").style.width = pct.toFixed(2) + "%";
+        $("progressText").innerHTML = `${done}/${total} completed · ${pill(`${errors} errors`, errors ? "warn" : "")}`;
+
+        const cur = prog.current;
+        if (!cur) {
+          $("currentText").textContent = "idle";
+        } else {
+          const phase = cur.phase || "—";
+          const sc = `sc ${cur.sc_done || 0}/${cur.sc_total || 0}`;
+          $("currentText").textContent = `#${cur.sample_index} · ${phase} · ${sc}`;
+        }
+      }
+
+      function renderMetrics(agg) {
+        if (!agg || !agg.n) {
+          $("metrics").textContent = "—";
+          return;
+        }
+        const pass1 = fmtPct(agg["pass@1"]);
+        const passk = agg["pass@k"] || {};
+        const allKeys = Object.keys(passk).sort((a, b) => parseInt(a.replace("pass@", "")) - parseInt(b.replace("pass@", "")));
+        let keys = allKeys;
+        if (allKeys.length > 30) {
+          const preferred = ["pass@8", "pass@16", "pass@32", "pass@64", "pass@128", "pass@256"];
+          keys = preferred.filter((k) => k in passk);
+        }
+        const rows = keys
+          .map((k) => `<div class="row" style="justify-content: space-between"><div class="mono">${k}</div><div>${fmtPct(passk[k])}</div></div>`)
+          .join("");
+        $("metrics").innerHTML = `
+          <div class="row" style="justify-content: space-between; margin-bottom: 8px">
+            <div class="mono">pass@1 (temp=0)</div>
+            <div>${pass1}</div>
+          </div>
+          <div class="muted small" style="margin-bottom: 6px">pass@k (temp=0.7, request order)</div>
+          ${rows}
+          ${allKeys.length > keys.length ? `<div class="muted small" style="margin-top: 8px">Showing ${keys.length}/${allKeys.length} pass@k values. Use results files for the full curve.</div>` : ""}
+        `;
+      }
+
+      function firstHitIndex(rec) {
+        const goldKey = goldKeyFor(rec);
+        const gens = (rec.sc && rec.sc.generations) || [];
+        for (let i = 0; i < gens.length; i++) {
+          if (genIsCorrect(gens[i], goldKey)) return i;
+        }
+        return null;
+      }
+
+      function renderSamplesTable() {
+        const body = $("samplesBody");
+        body.innerHTML = "";
+        const sorted = [...records].sort((a, b) => a.sample_index - b.sample_index);
+        for (const rec of sorted) {
+          const p1 = rec.pass1 && rec.pass1.correct ? pill("yes", "ok") : pill("no", "bad");
+          const hit = firstHitIndex(rec);
+          const hitCell = hit === null ? pill("—", "") : pill(String(hit), "ok");
+          const pk = rec.passk || {};
+          const p = (k) => (pk[k] ? pill("yes", "ok") : pill("no", "bad"));
+          const subject = (rec.sample && rec.sample.subject) || "—";
+          const level = (rec.sample && rec.sample.level) || "—";
+          const id = rec.sample_id || "—";
+          const tr = document.createElement("tr");
+          tr.className = "clickable";
+          tr.innerHTML = `
+            <td class="mono">${rec.sample_index}</td>
+            <td class="mono">${escapeHtml(String(id))}</td>
+            <td>${escapeHtml(String(subject))}</td>
+            <td class="mono">${escapeHtml(String(level))}</td>
+            <td>${p1}</td>
+            <td>${hitCell}</td>
+            <td>${p("pass@8")}</td>
+            <td>${p("pass@16")}</td>
+            <td>${p("pass@32")}</td>
+            <td>${p("pass@64")}</td>
+            <td>${p("pass@128")}</td>
+            <td>${p("pass@256")}</td>
+          `;
+          tr.addEventListener("click", () => {
+            selectedIndex = rec.sample_index;
+            renderDetails(rec);
+          });
+          body.appendChild(tr);
+        }
+      }
+
+      function escapeHtml(s) {
+        return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[c]));
+      }
+
+      // --- Numeric canonicalization (for grouping 11/2 == 5.5, handling negatives, stripping degrees) ---
+      function gcdBigInt(a, b) {
+        a = a < 0n ? -a : a;
+        b = b < 0n ? -b : b;
+        while (b !== 0n) {
+          const t = a % b;
+          a = b;
+          b = t;
+        }
+        return a;
+      }
+
+      function canonicalizeNumericString(raw) {
+        if (raw === null || raw === undefined) return null;
+        let s = raw.toString().trim();
+        if (!s) return null;
+
+        // Basic LaTeX cleanup
+        s = s.replace(/\$/g, "");
+        s = s.replace(/\\(displaystyle|left|right)\b/g, "");
+        s = s.replace(/\\text\{([^}]*)\}/g, "$1");
+        s = s.replace(/\\,/g, "").replace(/\\!/g, "").replace(/\\ /g, "");
+        s = s.replace(/\\frac\{([^}]*)\}\{([^}]*)\}/g, "$1/$2");
+        s = s.replace(/\^\s*\\circ/g, "").replace(/\\circ/g, "").replace(/°/g, "");
+        s = s.replace(/\s+/g, "");
+        s = s.replace(/\.$/, "");
+        while (s.startsWith("{") && s.endsWith("}")) s = s.slice(1, -1).trim();
+        s = s.replace(/[()]/g, "");
+        if (!s) return null;
+
+        // Support: int, decimal, fraction int/int
+        let num = 0n;
+        let den = 1n;
+        if (s.includes("/")) {
+          const parts = s.split("/");
+          if (parts.length !== 2) return null;
+          const a = parts[0];
+          const b = parts[1];
+          if (!/^[-+]?\d+$/.test(a) || !/^[-+]?\d+$/.test(b)) return null;
+          num = BigInt(a);
+          den = BigInt(b);
+          if (den === 0n) return null;
+        } else if (/^[-+]?\d+\.\d+$/.test(s)) {
+          const neg = s.startsWith("-");
+          const s2 = s.startsWith("+") ? s.slice(1) : s;
+          const [ip, fp] = s2.split(".");
+          const digits = fp.length;
+          den = 10n ** BigInt(digits);
+          num = BigInt(ip + fp);
+          if (neg) num = -num;
+        } else if (/^[-+]?\d+$/.test(s)) {
+          num = BigInt(s);
+          den = 1n;
+        } else {
+          return null;
+        }
+
+        // normalize sign + reduce
+        if (den < 0n) {
+          den = -den;
+          num = -num;
+        }
+        const g = gcdBigInt(num, den);
+        num /= g;
+        den /= g;
+
+        // terminating decimal?
+        let d = den;
+        let a2 = 0;
+        while (d % 2n === 0n) {
+          d /= 2n;
+          a2++;
+        }
+        let a5 = 0;
+        while (d % 5n === 0n) {
+          d /= 5n;
+          a5++;
+        }
+        if (d === 1n) {
+          const k = Math.max(a2, a5);
+          let scaled = num * (2n ** BigInt(k - a2)) * (5n ** BigInt(k - a5));
+          if (k === 0) return scaled.toString();
+          const sign = scaled < 0n ? "-" : "";
+          if (scaled < 0n) scaled = -scaled;
+          let str = scaled.toString().padStart(k + 1, "0");
+          const intPart = str.slice(0, -k);
+          let fracPart = str.slice(-k).replace(/0+$/, "");
+          if (!fracPart) return sign + intPart;
+          return sign + intPart + "." + fracPart;
+        }
+
+        if (den === 1n) return num.toString();
+        return num.toString() + "/" + den.toString();
+      }
+
+      function answerKey(raw) {
+        const can = canonicalizeNumericString(raw);
+        if (can !== null) return can;
+        return (raw ?? "").toString().trim();
+      }
+
+      function goldKeyFor(rec) {
+        const raw = (rec.gold && (rec.gold.canonical || rec.gold.normalized || rec.gold.answer)) || "";
+        return answerKey(raw);
+      }
+
+      function genRawAnswer(g) {
+        return (g.pred_canonical ?? g.pred_normalized ?? g.pred ?? "").toString().trim();
+      }
+
+      function genKeyFor(g) {
+        const raw = genRawAnswer(g);
+        return raw ? answerKey(raw) : "∅";
+      }
+
+      function genIsCorrect(g, goldKey) {
+        if (g.correct) return true;
+        const key = genKeyFor(g);
+        return goldKey && key !== "∅" && key === goldKey;
+      }
+
+      function renderDetails(rec) {
+        const prob = (rec.sample && rec.sample.problem) || "";
+        const gold = (rec.gold && rec.gold.answer) || "";
+        const goldKey = goldKeyFor(rec);
+        const p1text = rec.pass1 && rec.pass1.text ? rec.pass1.text : "";
+        const p1pred = rec.pass1 && rec.pass1.pred ? rec.pass1.pred : "";
+        const p1ok = rec.pass1 && rec.pass1.correct ? "ok" : "bad";
+
+        const gens = (rec.sc && rec.sc.generations) || [];
+        const maxShow = 50;
+        const genLines = gens.slice(0, maxShow).map((g) => {
+          const ok = genIsCorrect(g, goldKey);
+          return `${g.index.toString().padStart(3, " ")}  ${ok ? "✓" : "✗"}  ${g.pred || (g.text || "").trim()}`;
+        });
+        const more = gens.length > maxShow ? `\n... (${gens.length - maxShow} more)` : "";
+
+        // Answer distribution (grouped by canonicalized answer key)
+        const distMap = new Map();
+        for (const g of gens) {
+          const key = genKeyFor(g);
+          if (!distMap.has(key)) distMap.set(key, { key, display: key, count: 0, correct: false });
+          const item = distMap.get(key);
+          item.count += 1;
+          if (genIsCorrect(g, goldKey)) item.correct = true;
+        }
+        const dist = [...distMap.values()].sort((a, b) => b.count - a.count || a.key.localeCompare(b.key));
+        const uniq = dist.length;
+        const mode = dist.length ? dist[0] : null;
+        const denom = gens.length || 1;
+        const distRows = dist
+          .slice(0, 20)
+          .map((it) => {
+            const share = it.count / denom;
+            const w = mode ? Math.round((it.count / mode.count) * 100) : 0;
+            const badge = it.correct ? pill("gold", "ok") : pill("other", "");
+            const barClass = it.correct ? "bar ok" : "bar";
+            return `
+              <tr>
+                <td class="mono">${escapeHtml(String(it.display))}</td>
+                <td class="mono">${it.count}</td>
+                <td class="mono">${fmtPct(share)}</td>
+                <td>${badge}</td>
+                <td style="min-width: 180px">
+                  <div class="${barClass}"><div style="width:${w}%"></div></div>
+                </td>
+              </tr>
+            `;
+          })
+          .join("");
+        const distNote =
+          uniq > 20
+            ? `<div class="muted small" style="margin-top: 8px">Showing top 20 / ${uniq} unique answers.</div>`
+            : "";
+
+        $("details").innerHTML = `
+          <div class="row" style="gap: 10px; margin-bottom: 10px; flex-wrap: wrap">
+            ${pill("pass@1: " + (rec.pass1 && rec.pass1.correct ? "yes" : "no"), p1ok)}
+            ${pill("first hit: " + (firstHitIndex(rec) === null ? "—" : firstHitIndex(rec)), firstHitIndex(rec) === null ? "" : "ok")}
+            <span class="muted small">sample_id: <span class="mono">${escapeHtml(String(rec.sample_id || ""))}</span></span>
+          </div>
+          <div class="grid2">
+            <div class="card">
+              <h2>Problem</h2>
+              <pre>${escapeHtml(prob)}</pre>
+            </div>
+            <div class="card">
+              <h2>Gold / pass@1</h2>
+              <div class="muted small" style="margin-bottom: 6px">Gold answer</div>
+              <pre>${escapeHtml(String(gold))}</pre>
+              <div class="muted small" style="margin: 10px 0 6px 0">pass@1 output</div>
+              <pre>${escapeHtml(p1text || p1pred)}</pre>
+            </div>
+          </div>
+          <div class="card" style="margin-top: 12px">
+            <h2>First ${maxShow} generations (temp=0.7)</h2>
+            <pre>${escapeHtml(genLines.join("\n") + more)}</pre>
+          </div>
+          <div class="card" style="margin-top: 12px">
+            <h2>Answer distribution (all generations)</h2>
+            <div class="muted small" style="margin-bottom: 8px">
+              ${gens.length ? `${gens.length} generations · ${uniq} unique answers · mode share ${mode ? fmtPct(mode.count / denom) : "—"}` : "No generations"}
+            </div>
+            ${
+              gens.length
+                ? `<div style="overflow:auto; border: 1px solid var(--border); border-radius: 12px">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>answer (canonical)</th>
+                          <th>count</th>
+                          <th>share</th>
+                          <th>gold?</th>
+                          <th>relative</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        ${distRows}
+                      </tbody>
+                    </table>
+                  </div>
+                  ${distNote}`
+                : ""
+            }
+          </div>
+          <div class="muted small" style="margin-top: 8px">
+            Raw API responses are saved in <span class="mono">requests.jsonl</span> in the same run folder.
+          </div>
+        `;
+      }
+
+      async function fetchProgress() {
+        const r = await fetchNoCache(join(basePath, "progress.json"));
+        if (!r.ok) throw new Error(`progress.json fetch failed: ${r.status}`);
+        return r.json();
+      }
+
+      async function fetchResultsIfNeeded(completed) {
+        if (completed === lastCompleted) return;
+        const r = await fetchNoCache(join(basePath, "results.jsonl"));
+        if (!r.ok) return;
+        const text = await r.text();
+        const lines = text.split("\n").filter((ln) => ln.trim().length);
+        const parsed = [];
+        for (const ln of lines) {
+          try {
+            parsed.push(JSON.parse(ln));
+          } catch (e) {}
+        }
+        records = parsed;
+        recordByIndex = new Map(records.map((r) => [r.sample_index, r]));
+        lastCompleted = completed;
+        renderSamplesTable();
+        if (selectedIndex !== null && recordByIndex.has(selectedIndex)) {
+          renderDetails(recordByIndex.get(selectedIndex));
+        }
+      }
+
+      async function tick() {
+        if (!basePath) return;
+        try {
+          const prog = await fetchProgress();
+          renderProgress(prog);
+          renderMetrics(prog.aggregate);
+          await fetchResultsIfNeeded(prog.completed || 0);
+          $("status").textContent = `OK · ${basePath}`;
+        } catch (e) {
+          $("status").textContent = `Waiting for run… (${e})`;
+        }
+      }
+
+      $("loadBtn").addEventListener("click", async () => {
+        const p = $("runInput").value.trim();
+        if (!p) return;
+        await loadBasePath(p);
+      });
+
+      (async () => {
+        const initial = await detectBasePath();
+        if (!initial) {
+          $("status").textContent = "Could not auto-detect a run. Enter a run path above.";
+          return;
+        }
+        await loadBasePath(initial);
+        setInterval(tick, 1000);
+      })();
+    </script>
+  </body>
+</html>
+
+

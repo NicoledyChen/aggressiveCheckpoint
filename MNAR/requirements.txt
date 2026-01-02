@@ -1,0 +1,6 @@
+datasets>=2.18.0
+httpx>=0.27.0
+mathruler
+openai>=1.30.0
+tiktoken>=0.7.0
+

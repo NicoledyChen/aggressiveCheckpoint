@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Training Dynamics (Sweep)</title>
+    <style>
+      :root {
+        --bg: #0b1020;
+        --panel: #111a33;
+        --muted: #93a4c7;
+        --text: #e8eeff;
+        --border: rgba(255, 255, 255, 0.08);
+        --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+      }
+      body {
+        margin: 0;
+        font-family: var(--sans);
+        background: radial-gradient(1200px 700px at 20% 0%, #1a2550 0%, var(--bg) 55%);
+        color: var(--text);
+      }
+      .wrap {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      .card {
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02));
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 14px;
+      }
+      .row {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      .muted {
+        color: var(--muted);
+      }
+      .mono {
+        font-family: var(--mono);
+      }
+      input[type="text"] {
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 10px 12px;
+        color: var(--text);
+        min-width: 420px;
+      }
+      button,
+      select {
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 10px 12px;
+        color: var(--text);
+      }
+      button {
+        cursor: pointer;
+      }
+      .grid2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+      @media (max-width: 900px) {
+        .grid2 {
+          grid-template-columns: 1fr;
+        }
+      }
+      canvas {
+        width: 100% !important;
+        height: 340px !important;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12px;
+      }
+      th,
+      td {
+        padding: 10px 8px;
+        border-bottom: 1px solid var(--border);
+        vertical-align: top;
+      }
+      th {
+        text-align: left;
+        color: var(--muted);
+        font-weight: 600;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="card">
+        <div class="row" style="justify-content: space-between">
+          <div>
+            <div style="font-weight: 800">Training Dynamics</div>
+            <div class="muted" style="font-size: 12px; margin-top: 4px">
+              Reads <span class="mono">sweep_results.csv</span> (recommended) or <span class="mono">sweep_results.jsonl</span>.
+            </div>
+          </div>
+          <div class="muted" id="status" style="font-size: 12px"></div>
+        </div>
+        <div class="row" style="margin-top: 10px">
+          <div>
+            <div class="muted" style="font-size: 12px">Sweep folder (relative)</div>
+            <div class="row" style="margin-top: 6px">
+              <input id="sweepInput" type="text" class="mono" placeholder="sweeps/<sweep_id>" />
+              <button id="loadBtn">Load</button>
+            </div>
+          </div>
+          <div>
+            <div class="muted" style="font-size: 12px">Metric</div>
+            <div class="row" style="margin-top: 6px">
+              <select id="metricSel" class="mono">
+                <option value="math500.pass@1">math500.pass@1</option>
+                <option value="math500.pass@256">math500.pass@256</option>
+                <option value="math500.sc@256">math500.sc@256</option>
+                <option value="aime24.pass@1">aime24.pass@1</option>
+                <option value="aime24.pass@256">aime24.pass@256</option>
+                <option value="aime24.sc@256">aime24.sc@256</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid2" style="margin-top: 12px">
+        <div class="card">
+          <div style="font-weight: 700; margin-bottom: 8px">Curve</div>
+          <canvas id="chart"></canvas>
+        </div>
+        <div class="card">
+          <div style="font-weight: 700; margin-bottom: 8px">Table</div>
+          <div style="overflow: auto; max-height: 380px; border: 1px solid var(--border); border-radius: 12px">
+            <table>
+              <thead>
+                <tr>
+                  <th>step</th>
+                  <th>hf_repo</th>
+                  <th class="mono" id="metricHeader">metric</th>
+                </tr>
+              </thead>
+              <tbody id="tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script>
+      const $ = (id) => document.getElementById(id);
+
+      let rows = [];
+      let chart = null;
+
+      async function fetchNoCache(url) {
+        return fetch(url + (url.includes("?") ? "&" : "?") + "_=" + Date.now(), { cache: "no-store" });
+      }
+
+      function parseCsv(text) {
+        const lines = text.split(/\\r?\\n/).filter((l) => l.trim().length);
+        if (!lines.length) return [];
+        const header = lines[0].split(",").map((s) => s.trim());
+        const out = [];
+        for (let i = 1; i < lines.length; i++) {
+          const cols = lines[i].split(","); // simple CSV is fine here
+          const obj = {};
+          for (let j = 0; j < header.length; j++) obj[header[j]] = cols[j];
+          out.push(obj);
+        }
+        return out;
+      }
+
+      function toNum(x) {
+        if (x === null || x === undefined) return null;
+        const s = x.toString().trim();
+        if (!s) return null;
+        const v = Number(s);
+        return Number.isFinite(v) ? v : null;
+      }
+
+      function render(metricKey) {
+        $("metricHeader").textContent = metricKey;
+        const sorted = [...rows].sort((a, b) => (toNum(a.step) ?? 0) - (toNum(b.step) ?? 0));
+        const xs = sorted.map((r) => toNum(r.step));
+        const ys = sorted.map((r) => toNum(r[metricKey]));
+
+        // chart
+        if (chart) chart.destroy();
+        const ctx = $("chart").getContext("2d");
+        chart = new Chart(ctx, {
+          type: "line",
+          data: {
+            labels: xs,
+            datasets: [
+              {
+                label: metricKey,
+                data: ys,
+                borderWidth: 2,
+                pointRadius: 2,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              y: { suggestedMin: 0, suggestedMax: 1 },
+            },
+            plugins: {
+              legend: { display: true },
+            },
+          },
+        });
+
+        // table
+        const tb = $("tbody");
+        tb.innerHTML = "";
+        for (const r of sorted) {
+          const tr = document.createElement("tr");
+          tr.innerHTML = `
+            <td class="mono">${r.step ?? ""}</td>
+            <td class="mono">${(r.hf_repo ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;")}</td>
+            <td class="mono">${r[metricKey] ?? ""}</td>
+          `;
+          tb.appendChild(tr);
+        }
+      }
+
+      async function loadSweep(folder) {
+        $("status").textContent = "Loading…";
+        // Prefer CSV
+        let r = await fetchNoCache(`${folder}/sweep_results.csv`);
+        if (r.ok) {
+          const text = await r.text();
+          rows = parseCsv(text);
+          $("status").textContent = `Loaded ${rows.length} rows from sweep_results.csv`;
+          return;
+        }
+        // Fallback: jsonl
+        r = await fetchNoCache(`${folder}/sweep_results.jsonl`);
+        if (!r.ok) {
+          throw new Error(`Could not load sweep_results.csv or sweep_results.jsonl from ${folder}`);
+        }
+        const text = await r.text();
+        rows = text
+          .split(/\\r?\\n/)
+          .filter((l) => l.trim().length)
+          .map((l) => JSON.parse(l));
+        $("status").textContent = `Loaded ${rows.length} rows from sweep_results.jsonl`;
+      }
+
+      $("loadBtn").addEventListener("click", async () => {
+        const folder = $("sweepInput").value.trim();
+        if (!folder) return;
+        await loadSweep(folder);
+        render($("metricSel").value);
+      });
+      $("metricSel").addEventListener("change", () => render($("metricSel").value));
+
+      // Auto-detect sweep if opened with ?sweep=...
+      (async () => {
+        const qs = new URLSearchParams(window.location.search);
+        const sweep = qs.get("sweep");
+        if (sweep) {
+          $("sweepInput").value = sweep;
+          await loadSweep(sweep);
+          render($("metricSel").value);
+        } else {
+          $("status").textContent = "Enter a sweep folder like sweeps/<sweep_id> and click Load.";
+        }
+      })();
+    </script>
+  </body>
+</html>
+
+

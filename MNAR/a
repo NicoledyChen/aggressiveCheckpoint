@@ -1,0 +1,5 @@
+继续修改代码
+事实上我有一串checkpoint需要进行测试，并且最后希望可以分析训练dynamic
+https://huggingface.co/nicoledy/models 需要测试nicoledy/qwen2.5-math-base-limr-step-1到nicoledy/qwen2.5-math-base-limr-step-41 这些所有的checkpoint
+你需要通过DeepInfra deploy这些模型，并在测试之后删除这个serverless instance，
+控制最大开通的serverless instance 为N

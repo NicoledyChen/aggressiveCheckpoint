@@ -1,0 +1,1264 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Self-Consistency Dashboard</title>
+    <style>
+      :root {
+        --bg: #0b1020;
+        --panel: #111a33;
+        --muted: #93a4c7;
+        --text: #e8eeff;
+        --good: #3ddc97;
+        --bad: #ff6b6b;
+        --warn: #ffd166;
+        --border: rgba(255, 255, 255, 0.08);
+        --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+          "Courier New", monospace;
+        --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial,
+          "Apple Color Emoji", "Segoe UI Emoji";
+      }
+      body {
+        margin: 0;
+        font-family: var(--sans);
+        background: radial-gradient(1200px 700px at 20% 0%, #1a2550 0%, var(--bg) 55%);
+        color: var(--text);
+      }
+      .wrap {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      .row {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .card {
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02));
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 14px;
+      }
+      .card h2 {
+        margin: 0 0 8px 0;
+        font-size: 14px;
+        color: var(--muted);
+        font-weight: 600;
+        letter-spacing: 0.02em;
+      }
+      .title {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 12px;
+      }
+      .title h1 {
+        margin: 0;
+        font-size: 18px;
+      }
+      .muted {
+        color: var(--muted);
+      }
+      .mono {
+        font-family: var(--mono);
+      }
+      input[type="text"] {
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 10px 12px;
+        color: var(--text);
+        min-width: 320px;
+      }
+      button {
+        background: rgba(61, 220, 151, 0.12);
+        border: 1px solid rgba(61, 220, 151, 0.35);
+        border-radius: 10px;
+        padding: 10px 12px;
+        color: var(--text);
+        cursor: pointer;
+      }
+      button:hover {
+        background: rgba(61, 220, 151, 0.18);
+      }
+      .progress {
+        width: 100%;
+        height: 10px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid var(--border);
+        overflow: hidden;
+      }
+      .progress > div {
+        height: 100%;
+        width: 0%;
+        background: linear-gradient(90deg, rgba(61, 220, 151, 0.9), rgba(61, 220, 151, 0.55));
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12px;
+      }
+      th,
+      td {
+        padding: 10px 8px;
+        border-bottom: 1px solid var(--border);
+        vertical-align: top;
+      }
+      th {
+        text-align: left;
+        color: var(--muted);
+        font-weight: 600;
+      }
+      tr:hover td {
+        background: rgba(255, 255, 255, 0.03);
+      }
+      .pill {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        color: var(--muted);
+        font-size: 11px;
+      }
+      .ok {
+        color: var(--good);
+        border-color: rgba(61, 220, 151, 0.35);
+        background: rgba(61, 220, 151, 0.08);
+      }
+      .bad {
+        color: var(--bad);
+        border-color: rgba(255, 107, 107, 0.35);
+        background: rgba(255, 107, 107, 0.08);
+      }
+      .warn {
+        color: var(--warn);
+        border-color: rgba(255, 209, 102, 0.35);
+        background: rgba(255, 209, 102, 0.08);
+      }
+      .grid2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+      @media (max-width: 900px) {
+        .grid2 {
+          grid-template-columns: 1fr;
+        }
+      }
+      pre {
+        margin: 0;
+        white-space: pre-wrap;
+        word-break: break-word;
+        font-family: var(--mono);
+        font-size: 12px;
+        line-height: 1.35;
+        color: #d7e3ff;
+      }
+      .md {
+        font-size: 13px;
+        line-height: 1.55;
+        color: #d7e3ff;
+      }
+      .md p {
+        margin: 0 0 10px 0;
+      }
+      .md code {
+        font-family: var(--mono);
+        font-size: 12px;
+        background: rgba(0, 0, 0, 0.22);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 1px 6px;
+      }
+      .md pre {
+        background: rgba(0, 0, 0, 0.22);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 12px;
+        overflow: auto;
+      }
+      .md pre code {
+        border: none;
+        background: transparent;
+        padding: 0;
+      }
+      .md a {
+        color: #8ab4ff;
+        text-decoration: none;
+      }
+      .md a:hover {
+        text-decoration: underline;
+      }
+      .md ul,
+      .md ol {
+        margin: 0 0 10px 18px;
+      }
+      .md h1,
+      .md h2,
+      .md h3,
+      .md h4 {
+        margin: 12px 0 8px 0;
+      }
+      .bar {
+        width: 100%;
+        height: 9px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid var(--border);
+        overflow: hidden;
+      }
+      .bar > div {
+        height: 100%;
+        width: 0%;
+        background: linear-gradient(90deg, rgba(147, 164, 199, 0.9), rgba(147, 164, 199, 0.45));
+      }
+      .bar.ok > div {
+        background: linear-gradient(90deg, rgba(61, 220, 151, 0.95), rgba(61, 220, 151, 0.45));
+      }
+      .small {
+        font-size: 12px;
+      }
+      .clickable {
+        cursor: pointer;
+      }
+      .modal-overlay {
+        position: fixed;
+        inset: 0;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0, 0, 0, 0.6);
+        backdrop-filter: blur(6px);
+        z-index: 9999;
+        padding: 16px;
+      }
+      .modal {
+        width: min(1180px, 96vw);
+        height: min(820px, 88vh);
+        background: linear-gradient(180deg, rgba(17, 26, 51, 0.98), rgba(17, 26, 51, 0.92));
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+      }
+      .modal-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 14px 14px 10px 14px;
+        border-bottom: 1px solid var(--border);
+      }
+      .modal-title {
+        font-size: 14px;
+        font-weight: 700;
+      }
+      .modal-subtitle {
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .modal-content {
+        display: grid;
+        grid-template-columns: 320px 1fr;
+        gap: 12px;
+        padding: 12px;
+        height: 100%;
+        overflow: hidden;
+      }
+      .modal-pane {
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        overflow: hidden;
+        background: rgba(0, 0, 0, 0.14);
+        display: flex;
+        flex-direction: column;
+      }
+      .modal-pane-header {
+        padding: 10px 10px 8px 10px;
+        border-bottom: 1px solid var(--border);
+      }
+      .modal-pane-body {
+        padding: 10px;
+        overflow: auto;
+        height: 100%;
+      }
+      .modal-list {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .modal-item {
+        text-align: left;
+        width: 100%;
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 8px 10px;
+        color: var(--text);
+        cursor: pointer;
+        font-family: var(--mono);
+        font-size: 12px;
+      }
+      .modal-item:hover {
+        background: rgba(255, 255, 255, 0.06);
+      }
+      .modal-item.active {
+        border-color: rgba(138, 180, 255, 0.55);
+        background: rgba(138, 180, 255, 0.12);
+      }
+      .modal-kbd {
+        font-family: var(--mono);
+        font-size: 11px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 1px 6px;
+        color: var(--muted);
+      }
+      @media (max-width: 900px) {
+        .modal-content {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="card">
+        <div class="title">
+          <h1>Self-Consistency Dashboard</h1>
+          <div class="muted small" id="clock"></div>
+        </div>
+        <div class="row" style="margin-top: 10px">
+          <div>
+            <div class="muted small">Run path (relative)</div>
+            <div class="row" style="align-items: center; margin-top: 6px">
+              <input id="runInput" type="text" class="mono" placeholder="runs/20251229_130000_model" />
+              <button id="loadBtn">Load</button>
+              <span id="status" class="muted small"></span>
+            </div>
+            <div class="muted small" style="margin-top: 8px">
+              Tip: if you open a run-local copy at <span class="mono">runs/&lt;run_id&gt;/dashboard.html</span>, this auto-loads.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid2" style="margin-top: 12px">
+        <div class="card">
+          <h2>Progress</h2>
+          <div class="progress"><div id="progressFill"></div></div>
+          <div class="row" style="justify-content: space-between; margin-top: 10px">
+            <div class="small" id="progressText">—</div>
+            <div class="small muted" id="currentText">—</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Metrics</h2>
+          <div id="metrics" class="small">—</div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top: 12px">
+        <h2>Samples</h2>
+        <div class="muted small" style="margin-bottom: 8px">
+          Click a row to inspect details. Table updates when new samples finish.
+        </div>
+        <div style="overflow: auto; max-height: 420px; border: 1px solid var(--border); border-radius: 12px">
+          <table id="samplesTable">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>id</th>
+                <th>subject</th>
+                <th>lvl</th>
+                <th>pass@1</th>
+                <th>sc@256</th>
+                <th>first hit</th>
+                <th>pass@8</th>
+                <th>pass@16</th>
+                <th>pass@32</th>
+                <th>pass@64</th>
+                <th>pass@128</th>
+                <th>pass@256</th>
+              </tr>
+            </thead>
+            <tbody id="samplesBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top: 12px">
+        <h2>Details</h2>
+        <div id="details" class="small muted">Select a sample above.</div>
+      </div>
+    </div>
+
+    <!-- Answer group modal -->
+    <div id="modalOverlay" class="modal-overlay" aria-hidden="true">
+      <div class="modal" role="dialog" aria-modal="true" aria-label="Answer group raw outputs">
+        <div class="modal-header">
+          <div>
+            <div class="modal-title" id="modalTitle">Group</div>
+            <div class="modal-subtitle" id="modalSubtitle"></div>
+          </div>
+          <div class="row" style="align-items: center; gap: 10px">
+            <span class="modal-kbd">Esc</span>
+            <button id="modalCloseBtn">Close</button>
+          </div>
+        </div>
+        <div class="modal-content">
+          <div class="modal-pane">
+            <div class="modal-pane-header">
+              <div class="muted small">Raw outputs in this group</div>
+            </div>
+            <div class="modal-pane-body">
+              <div id="modalList" class="modal-list"></div>
+            </div>
+          </div>
+          <div class="modal-pane">
+            <div class="modal-pane-header">
+              <div class="muted small" id="modalMeta">—</div>
+            </div>
+            <div class="modal-pane-body">
+              <div class="md" id="modalOutput"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const $ = (id) => document.getElementById(id);
+
+      function fmtPct(x) {
+        if (x === null || x === undefined) return "—";
+        return (x * 100).toFixed(1) + "%";
+      }
+
+      function pill(text, kind) {
+        const cls = kind ? `pill ${kind}` : "pill";
+        return `<span class="${cls}">${text}</span>`;
+      }
+
+      function nowClock() {
+        const d = new Date();
+        $("clock").textContent = d.toLocaleString();
+      }
+
+      setInterval(nowClock, 500);
+      nowClock();
+
+      let basePath = null;
+      let lastCompleted = -1;
+      let records = [];
+      let recordByIndex = new Map();
+      let selectedIndex = null;
+      let derivedAgg = null;
+
+      const DISPLAY_KS = [8, 16, 32, 64, 128, 256];
+
+      function join(base, p) {
+        base = base.replace(/\/+$/, "");
+        if (p.startsWith("/")) p = p.slice(1);
+        return `${base}/${p}`;
+      }
+
+      async function fetchNoCache(url) {
+        return fetch(url + (url.includes("?") ? "&" : "?") + "_=" + Date.now(), { cache: "no-store" });
+      }
+
+      async function detectBasePath() {
+        // 1) If we are in a run folder, progress.json exists next to this HTML.
+        try {
+          const r = await fetchNoCache("progress.json");
+          if (r.ok) return ".";
+        } catch (e) {}
+
+        // 2) If query param run exists, use it.
+        const qs = new URLSearchParams(window.location.search);
+        const run = qs.get("run");
+        if (run) return run;
+
+        // 3) Try to auto-pick latest run by parsing python http.server directory listing.
+        try {
+          const r = await fetchNoCache("runs/");
+          if (!r.ok) return null;
+          const html = await r.text();
+          const hrefs = [...html.matchAll(/href="([^"]+\/)"/g)].map((m) => m[1]);
+          const dirs = hrefs
+            .filter((h) => /^\d{8}_\d{6}_/.test(h))
+            .map((h) => h.replace(/\/$/, ""))
+            .sort();
+          if (!dirs.length) return null;
+          return join("runs", dirs[dirs.length - 1]);
+        } catch (e) {
+          return null;
+        }
+      }
+
+      async function loadBasePath(p) {
+        basePath = p.replace(/\/+$/, "");
+        $("status").textContent = `Loading from ${basePath}`;
+        $("runInput").value = basePath;
+        lastCompleted = -1;
+        records = [];
+        recordByIndex = new Map();
+        derivedAgg = null;
+        selectedIndex = null;
+        $("details").textContent = "Select a sample above.";
+        await tick(); // immediate
+      }
+
+      function renderProgress(prog) {
+        const total = prog.total || 0;
+        const done = prog.completed || 0;
+        const errors = prog.errors || 0;
+        const pct = total ? Math.min(100, (done / total) * 100) : 0;
+        $("progressFill").style.width = pct.toFixed(2) + "%";
+        $("progressText").innerHTML = `${done}/${total} completed · ${pill(`${errors} errors`, errors ? "warn" : "")}`;
+
+        const cur = prog.current;
+        if (!cur) {
+          $("currentText").textContent = "idle";
+        } else {
+          const phase = cur.phase || "—";
+          const sc = `sc ${cur.sc_done || 0}/${cur.sc_total || 0}`;
+          $("currentText").textContent = `#${cur.sample_index} · ${phase} · ${sc}`;
+        }
+      }
+
+      function renderMetrics(agg) {
+        if (!agg || !agg.n) {
+          $("metrics").textContent = "—";
+          return;
+        }
+        const pass1 = fmtPct(agg["pass@1"]);
+        const passk = agg["pass@k"] || {};
+        const allKeys = Object.keys(passk).sort((a, b) => parseInt(a.replace("pass@", "")) - parseInt(b.replace("pass@", "")));
+        let keys = allKeys;
+        if (allKeys.length > 30) {
+          const preferred = ["pass@8", "pass@16", "pass@32", "pass@64", "pass@128", "pass@256"];
+          keys = preferred.filter((k) => k in passk);
+        }
+        const rows = keys
+          .map((k) => `<div class="row" style="justify-content: space-between"><div class="mono">${k}</div><div>${fmtPct(passk[k])}</div></div>`)
+          .join("");
+
+        const sck = agg["sc@k"] || {};
+        const allScKeys = Object.keys(sck).sort((a, b) => parseInt(a.replace("sc@", "")) - parseInt(b.replace("sc@", "")));
+        let scKeys = allScKeys;
+        if (allScKeys.length > 30) {
+          const preferred = DISPLAY_KS.map((k) => `sc@${k}`);
+          scKeys = preferred.filter((k) => k in sck);
+        }
+        const scRows = scKeys
+          .map((k) => `<div class="row" style="justify-content: space-between"><div class="mono">${k}</div><div>${fmtPct(sck[k])}</div></div>`)
+          .join("");
+
+        $("metrics").innerHTML = `
+          <div class="row" style="justify-content: space-between; margin-bottom: 8px">
+            <div class="mono">pass@1 (temp=0)</div>
+            <div>${pass1}</div>
+          </div>
+          <div class="muted small" style="margin-bottom: 6px">pass@k (temp=0.7, request order)</div>
+          ${rows}
+          ${allKeys.length > keys.length ? `<div class="muted small" style="margin-top: 8px">Showing ${keys.length}/${allKeys.length} pass@k values. Use results files for the full curve.</div>` : ""}
+          ${
+            allScKeys.length
+              ? `<div class="muted small" style="margin-top: 12px; margin-bottom: 6px">self-consistency vote@k (mode answer among first k)</div>
+                 ${scRows}`
+              : ""
+          }
+        `;
+      }
+
+      // --- Numeric canonicalization (for grouping 11/2 == 5.5, handling negatives) ---
+      function gcdBigInt(a, b) {
+        a = a < 0n ? -a : a;
+        b = b < 0n ? -b : b;
+        while (b !== 0n) {
+          const t = a % b;
+          a = b;
+          b = t;
+        }
+        return a;
+      }
+
+      function normalizeTextKey(raw) {
+        if (raw === null || raw === undefined) return "";
+        let s = raw.toString().trim();
+        if (!s) return "";
+        // Lightweight LaTeX cleanup
+        s = s.replace(/\$/g, "");
+        s = s.replace(/\\(displaystyle|left|right)\b/g, "");
+        s = s.replace(/\\text\{([^}]*)\}/g, "$1");
+        s = s.replace(/\\textbf\{([^}]*)\}/g, "$1");
+        s = s.replace(/\\overline\{([^}]*)\}/g, "$1");
+        s = s.replace(/\\boxed\{([^}]*)\}/g, "$1");
+        s = s.replace(/\\,/g, "").replace(/\\!/g, "").replace(/\\ /g, "");
+        s = s.replace(/\s+/g, "");
+        return s;
+      }
+
+      function canonicalizeNumericString(raw) {
+        if (raw === null || raw === undefined) return null;
+        let s = normalizeTextKey(raw);
+        if (!s) return null;
+
+        // \frac{a}{b} -> a/b, also accept "frac{a}{b}".
+        s = s.replace(/\\?frac\{([^}]*)\}\{([^}]*)\}/g, "$1/$2");
+        // Remove braces / parentheses (common in normalized forms like (11)/(2))
+        s = s.replace(/[{}()]/g, "");
+        // Remove degree markers
+        s = s.replace(/\^\s*\\circ/g, "").replace(/\\circ/g, "").replace(/°/g, "");
+        // Remove trailing period
+        s = s.replace(/\.$/, "");
+        // Strip leading plus
+        if (s.startsWith("+")) s = s.slice(1);
+        if (!s) return null;
+
+        // Support: int, decimal, fraction int/int
+        let num = 0n;
+        let den = 1n;
+        if (s.includes("/")) {
+          const parts = s.split("/");
+          if (parts.length !== 2) return null;
+          const a = parts[0];
+          const b = parts[1];
+          if (!/^[-+]?\d+$/.test(a) || !/^[-+]?\d+$/.test(b)) return null;
+          num = BigInt(a);
+          den = BigInt(b);
+          if (den === 0n) return null;
+        } else if (/^[-+]?\d+\.\d+$/.test(s)) {
+          const neg = s.startsWith("-");
+          const s2 = s.startsWith("+") ? s.slice(1) : s;
+          const [ip, fp] = s2.split(".");
+          const digits = fp.length;
+          den = 10n ** BigInt(digits);
+          num = BigInt(ip + fp);
+          if (neg) num = -num;
+        } else if (/^[-+]?\d+$/.test(s)) {
+          num = BigInt(s);
+          den = 1n;
+        } else {
+          return null;
+        }
+
+        // Normalize sign + reduce
+        if (den < 0n) {
+          den = -den;
+          num = -num;
+        }
+        const g = gcdBigInt(num, den);
+        num /= g;
+        den /= g;
+
+        // Convert to terminating decimal when possible (den has only 2/5 factors)
+        let d = den;
+        let a2 = 0;
+        while (d % 2n === 0n) {
+          d /= 2n;
+          a2++;
+        }
+        let a5 = 0;
+        while (d % 5n === 0n) {
+          d /= 5n;
+          a5++;
+        }
+        if (d === 1n) {
+          const k = Math.max(a2, a5);
+          let scaled = num * (2n ** BigInt(k - a2)) * (5n ** BigInt(k - a5));
+          if (k === 0) return scaled.toString();
+          const sign = scaled < 0n ? "-" : "";
+          if (scaled < 0n) scaled = -scaled;
+          let str = scaled.toString().padStart(k + 1, "0");
+          const intPart = str.slice(0, -k);
+          let fracPart = str.slice(-k).replace(/0+$/, "");
+          if (!fracPart) return sign + intPart;
+          return sign + intPart + "." + fracPart;
+        }
+
+        if (den === 1n) return num.toString();
+        return num.toString() + "/" + den.toString();
+      }
+
+      function answerKey(raw) {
+        const can = canonicalizeNumericString(raw);
+        if (can !== null) return can;
+        return normalizeTextKey(raw);
+      }
+
+      function goldKeyFor(rec) {
+        const raw = (rec.gold && (rec.gold.canonical || rec.gold.normalized || rec.gold.answer)) || "";
+        return answerKey(raw);
+      }
+
+      function pass1KeyFor(rec) {
+        const raw =
+          (rec.pass1 && (rec.pass1.pred_canonical || rec.pass1.pred_normalized || rec.pass1.pred || rec.pass1.text)) || "";
+        return answerKey(raw);
+      }
+
+      function genKeyFor(g) {
+        const raw = (g.pred_canonical ?? g.pred_normalized ?? g.pred ?? g.text ?? "").toString().trim();
+        if (!raw) return "∅";
+        return answerKey(raw);
+      }
+
+      function genIsCorrect(g, goldKey) {
+        if (g.correct) return true; // trust server-side when available
+        const key = genKeyFor(g);
+        return goldKey && key !== "∅" && key === goldKey;
+      }
+
+      function modeForK(gens, k) {
+        const kk = Math.min(k, gens.length);
+        if (!kk) return { key: "∅", count: 0, share: 0, first: null };
+        const counts = new Map(); // key -> {count, first}
+        let best = null; // {key,count,first}
+        for (let i = 0; i < kk; i++) {
+          const key = genKeyFor(gens[i]);
+          const cur = counts.get(key) || { count: 0, first: i };
+          cur.count += 1;
+          if (cur.first > i) cur.first = i;
+          counts.set(key, cur);
+
+          if (!best) {
+            best = { key, count: cur.count, first: cur.first };
+            continue;
+          }
+          if (cur.count > best.count) best = { key, count: cur.count, first: cur.first };
+          else if (cur.count === best.count && cur.first < best.first) best = { key, count: cur.count, first: cur.first };
+        }
+        if (!best) return { key: "∅", count: 0, share: 0, first: null };
+        return { ...best, share: best.count / kk };
+      }
+
+      function getDerived(rec) {
+        const goldKey = goldKeyFor(rec);
+        const gens = (rec.sc && rec.sc.generations) || [];
+        const cached = rec._derived;
+        if (cached && cached.goldKey === goldKey && cached._nGens === gens.length) return cached;
+
+        const pass1Ok = (rec.pass1 && rec.pass1.correct) || (goldKey && pass1KeyFor(rec) === goldKey);
+
+        let firstHit = null;
+        for (let i = 0; i < gens.length; i++) {
+          if (genIsCorrect(gens[i], goldKey)) {
+            firstHit = i;
+            break;
+          }
+        }
+
+        const passk = {};
+        for (const k of DISPLAY_KS) passk[`pass@${k}`] = firstHit !== null && firstHit < k;
+
+        const sc = {};
+        for (const k of DISPLAY_KS) {
+          const m = modeForK(gens, k);
+          const ok = goldKey && m.key !== "∅" && m.key === goldKey;
+          sc[`sc@${k}`] = { key: m.key, count: m.count, share: m.share, correct: !!ok };
+        }
+
+        const d = { goldKey, pass1Ok: !!pass1Ok, firstHit, passk, sc, _nGens: gens.length };
+        rec._derived = d;
+        return d;
+      }
+
+      function firstHitIndex(rec) {
+        return getDerived(rec).firstHit;
+      }
+
+      function computeAggregateFromRecords(recs) {
+        const n = recs.length;
+        if (!n) return null;
+        const pass1 = recs.reduce((acc, r) => acc + (getDerived(r).pass1Ok ? 1 : 0), 0) / n;
+        const passk = {};
+        for (const k of DISPLAY_KS) {
+          const key = `pass@${k}`;
+          passk[key] = recs.reduce((acc, r) => acc + (getDerived(r).passk[key] ? 1 : 0), 0) / n;
+        }
+        const sck = {};
+        for (const k of DISPLAY_KS) {
+          const key = `sc@${k}`;
+          sck[key] = recs.reduce((acc, r) => acc + (getDerived(r).sc[key].correct ? 1 : 0), 0) / n;
+        }
+        return { n, "pass@1": pass1, "pass@k": passk, "sc@k": sck };
+      }
+
+      function renderSamplesTable() {
+        const body = $("samplesBody");
+        body.innerHTML = "";
+        const sorted = [...records].sort((a, b) => a.sample_index - b.sample_index);
+        for (const rec of sorted) {
+          const d = getDerived(rec);
+          const p1 = d.pass1Ok ? pill("yes", "ok") : pill("no", "bad");
+          const sc256 = d.sc && d.sc["sc@256"] ? (d.sc["sc@256"].correct ? pill("yes", "ok") : pill("no", "bad")) : pill("—", "");
+          const hit = d.firstHit;
+          const hitCell = hit === null ? pill("—", "") : pill(String(hit), "ok");
+          const pk = d.passk || {};
+          const p = (k) => (pk[k] ? pill("yes", "ok") : pill("no", "bad"));
+          const subject = (rec.sample && rec.sample.subject) || "—";
+          const level = (rec.sample && rec.sample.level) || "—";
+          const id = rec.sample_id || "—";
+          const tr = document.createElement("tr");
+          tr.className = "clickable";
+          tr.innerHTML = `
+            <td class="mono">${rec.sample_index}</td>
+            <td class="mono">${escapeHtml(String(id))}</td>
+            <td>${escapeHtml(String(subject))}</td>
+            <td class="mono">${escapeHtml(String(level))}</td>
+            <td>${p1}</td>
+            <td>${sc256}</td>
+            <td>${hitCell}</td>
+            <td>${p("pass@8")}</td>
+            <td>${p("pass@16")}</td>
+            <td>${p("pass@32")}</td>
+            <td>${p("pass@64")}</td>
+            <td>${p("pass@128")}</td>
+            <td>${p("pass@256")}</td>
+          `;
+          tr.addEventListener("click", () => {
+            selectedIndex = rec.sample_index;
+            renderDetails(rec);
+          });
+          body.appendChild(tr);
+        }
+      }
+
+      function escapeHtml(s) {
+        return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[c]));
+      }
+
+      // --- Markdown + LaTeX rendering (safe, with fallback) ---
+      const MD_LIBS = {
+        marked: "https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js",
+        dompurify: "https://cdn.jsdelivr.net/npm/dompurify@3.0.11/dist/purify.min.js",
+        katexCss: "https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css",
+        katexJs: "https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js",
+        katexAuto: "https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js",
+      };
+
+      let _mdReadyPromise = null;
+      function _loadStyle(href) {
+        return new Promise((resolve) => {
+          if ([...document.styleSheets].some((s) => s.href === href)) return resolve(true);
+          const link = document.createElement("link");
+          link.rel = "stylesheet";
+          link.href = href;
+          link.onload = () => resolve(true);
+          link.onerror = () => resolve(false);
+          document.head.appendChild(link);
+        });
+      }
+
+      function _loadScript(src) {
+        return new Promise((resolve) => {
+          const existing = [...document.scripts].find((s) => s.src === src);
+          if (existing) return resolve(true);
+          const s = document.createElement("script");
+          s.src = src;
+          s.defer = true;
+          s.onload = () => resolve(true);
+          s.onerror = () => resolve(false);
+          document.head.appendChild(s);
+        });
+      }
+
+      function ensureMarkdownReady() {
+        if (_mdReadyPromise) return _mdReadyPromise;
+        _mdReadyPromise = (async () => {
+          // Best-effort: failures fall back to <pre>.
+          await _loadStyle(MD_LIBS.katexCss);
+          await _loadScript(MD_LIBS.marked);
+          await _loadScript(MD_LIBS.dompurify);
+          await _loadScript(MD_LIBS.katexJs);
+          await _loadScript(MD_LIBS.katexAuto);
+          try {
+            if (window.marked && window.marked.setOptions) {
+              window.marked.setOptions({ gfm: true, breaks: true });
+            }
+          } catch (e) {}
+          return true;
+        })();
+        return _mdReadyPromise;
+      }
+
+      function _renderMarkdownInto(el, mdText) {
+        if (!el) return;
+        const text = (mdText ?? "").toString();
+        if (window.marked && window.DOMPurify) {
+          try {
+            const html = window.marked.parse(text);
+            el.innerHTML = window.DOMPurify.sanitize(html, { USE_PROFILES: { html: true } });
+            if (window.renderMathInElement) {
+              window.renderMathInElement(el, {
+                delimiters: [
+                  { left: "$$", right: "$$", display: true },
+                  { left: "\\\\[", right: "\\\\]", display: true },
+                  { left: "\\\\(", right: "\\\\)", display: false },
+                  { left: "$", right: "$", display: false },
+                ],
+                throwOnError: false,
+              });
+            }
+            return;
+          } catch (e) {
+            // fall through
+          }
+        }
+        el.innerHTML = `<pre>${escapeHtml(text)}</pre>`;
+      }
+
+      function setMarkdown(elId, mdText) {
+        const el = document.getElementById(elId);
+        _renderMarkdownInto(el, mdText);
+        if (!window.marked || !window.DOMPurify || !window.renderMathInElement) {
+          ensureMarkdownReady().then(() => _renderMarkdownInto(el, mdText));
+        }
+      }
+
+      // --- Modal: browse raw outputs by grouped answer ---
+      let _modalState = null;
+      let _modalInited = false;
+
+      function initModalOnce() {
+        if (_modalInited) return;
+        _modalInited = true;
+
+        const overlay = $("modalOverlay");
+        const closeBtn = $("modalCloseBtn");
+
+        function close() {
+          overlay.style.display = "none";
+          overlay.setAttribute("aria-hidden", "true");
+          document.body.style.overflow = "";
+          _modalState = null;
+        }
+
+        closeBtn.addEventListener("click", close);
+        overlay.addEventListener("click", (e) => {
+          if (e.target === overlay) close();
+        });
+        document.addEventListener("keydown", (e) => {
+          if (e.key === "Escape" && overlay.style.display !== "none") close();
+        });
+
+        // expose for other functions
+        overlay._close = close;
+      }
+
+      function openGroupModal(rec, groupKey) {
+        initModalOnce();
+        const overlay = $("modalOverlay");
+        const titleEl = $("modalTitle");
+        const subEl = $("modalSubtitle");
+        const listEl = $("modalList");
+        const metaEl = $("modalMeta");
+        const outElId = "modalOutput";
+
+        const d = getDerived(rec);
+        const goldKey = d.goldKey;
+        const gens = (rec.sc && rec.sc.generations) || [];
+        const items = [];
+        for (const g of gens) {
+          const key = genKeyFor(g);
+          if (key !== groupKey) continue;
+          const ok = genIsCorrect(g, goldKey);
+          items.push({
+            idx: g.index,
+            pred: (g.pred ?? "").toString(),
+            key,
+            ok: !!ok,
+            text: (g.text ?? "").toString(),
+          });
+        }
+        items.sort((a, b) => a.idx - b.idx);
+
+        _modalState = { rec, groupKey, items, selected: 0 };
+        titleEl.textContent = `Group: ${groupKey}`;
+        subEl.textContent = `${items.length} generations · click an index to view full raw output`;
+
+        listEl.innerHTML = items
+          .map((it, i) => {
+            const badge = it.ok ? "✓" : "✗";
+            const pred = it.pred ? it.pred.slice(0, 50) : "";
+            return `<button class="modal-item ${i === 0 ? "active" : ""}" data-i="${i}">#${it.idx}  ${badge}  ${escapeHtml(pred)}</button>`;
+          })
+          .join("");
+
+        function select(i) {
+          _modalState.selected = i;
+          const it = items[i];
+          [...listEl.querySelectorAll(".modal-item")].forEach((b) => b.classList.remove("active"));
+          const btn = listEl.querySelector(`.modal-item[data-i="${i}"]`);
+          if (btn) btn.classList.add("active");
+
+          metaEl.innerHTML = `
+            <span class="mono">#${it.idx}</span>
+            &nbsp;·&nbsp; ${it.ok ? pill("correct", "ok") : pill("wrong", "bad")}
+            &nbsp;·&nbsp; <span class="muted small">extracted:</span> <span class="mono">${escapeHtml(it.pred || "")}</span>
+          `;
+
+          // Prefer showing the full raw generation text; fallback to extracted pred.
+          setMarkdown(outElId, it.text || it.pred || "");
+        }
+
+        [...listEl.querySelectorAll(".modal-item")].forEach((b) => {
+          b.addEventListener("click", () => select(parseInt(b.getAttribute("data-i"), 10)));
+        });
+
+        // Open overlay
+        overlay.style.display = "flex";
+        overlay.setAttribute("aria-hidden", "false");
+        document.body.style.overflow = "hidden";
+        if (items.length) select(0);
+        else {
+          metaEl.textContent = "No generations in this group.";
+          setMarkdown(outElId, "");
+        }
+      }
+
+      function wireDistributionClicks(rec) {
+        const root = $("details");
+        if (!root) return;
+        const rows = root.querySelectorAll("[data-ans-key]");
+        rows.forEach((row) => {
+          const key = decodeURIComponent(row.getAttribute("data-ans-key"));
+          row.addEventListener("click", () => openGroupModal(rec, key));
+        });
+      }
+
+      function renderDetails(rec) {
+        const prob = (rec.sample && rec.sample.problem) || "";
+        const gold = (rec.gold && rec.gold.answer) || "";
+        const d = getDerived(rec);
+        const goldKey = d.goldKey;
+        const p1text = rec.pass1 && rec.pass1.text ? rec.pass1.text : "";
+        const p1pred = rec.pass1 && rec.pass1.pred ? rec.pass1.pred : "";
+        const p1ok = d.pass1Ok ? "ok" : "bad";
+
+        const gens = (rec.sc && rec.sc.generations) || [];
+        const maxShow = 50;
+        const genLines = gens.slice(0, maxShow).map((g) => {
+          const ok = genIsCorrect(g, goldKey);
+          return `${g.index.toString().padStart(3, " ")}  ${ok ? "✓" : "✗"}  ${g.pred || (g.text || "").trim()}`;
+        });
+        const more = gens.length > maxShow ? `\n... (${gens.length - maxShow} more)` : "";
+
+        // Answer distribution (grouped by canonicalized key)
+        const distMap = new Map();
+        for (const g of gens) {
+          const key = genKeyFor(g);
+          if (!distMap.has(key)) distMap.set(key, { key, display: key, count: 0, correct: false });
+          const item = distMap.get(key);
+          item.count += 1;
+          if (key !== "∅" && goldKey && key === goldKey) item.correct = true;
+        }
+        const dist = [...distMap.values()].sort((a, b) => b.count - a.count || a.key.localeCompare(b.key));
+        const uniq = dist.length;
+        const mode = dist.length ? dist[0] : null;
+        const denom = gens.length || 1;
+        const distRows = dist
+          .slice(0, 20)
+          .map((it) => {
+            const share = it.count / denom;
+            const w = mode ? Math.round((it.count / mode.count) * 100) : 0;
+            const badge = it.correct ? pill("gold", "ok") : pill("other", "");
+            const barClass = it.correct ? "bar ok" : "bar";
+            return `
+              <tr class="clickable" data-ans-key="${escapeHtml(encodeURIComponent(String(it.key)))}" title="Click to browse raw outputs for this answer group">
+                <td class="mono">${escapeHtml(String(it.display))}</td>
+                <td class="mono">${it.count}</td>
+                <td class="mono">${fmtPct(share)}</td>
+                <td>${badge}</td>
+                <td style="min-width: 180px">
+                  <div class="${barClass}"><div style="width:${w}%"></div></div>
+                </td>
+              </tr>
+            `;
+          })
+          .join("");
+        const distNote =
+          uniq > 20
+            ? `<div class="muted small" style="margin-top: 8px">Showing top 20 / ${uniq} unique answers.</div>`
+            : "";
+
+        const scRows = DISPLAY_KS.map((k) => {
+          const s = d.sc && d.sc[`sc@${k}`];
+          if (!s) return "";
+          const ok = s.correct ? pill("yes", "ok") : pill("no", "bad");
+          return `
+            <tr>
+              <td class="mono">sc@${k}</td>
+              <td class="mono">${escapeHtml(String(s.key))}</td>
+              <td class="mono">${s.count}</td>
+              <td class="mono">${fmtPct(s.share)}</td>
+              <td>${ok}</td>
+            </tr>
+          `;
+        }).join("");
+
+        $("details").innerHTML = `
+          <div class="row" style="gap: 10px; margin-bottom: 10px; flex-wrap: wrap">
+            ${pill("pass@1: " + (d.pass1Ok ? "yes" : "no"), p1ok)}
+            ${pill("first hit: " + (d.firstHit === null ? "—" : d.firstHit), d.firstHit === null ? "" : "ok")}
+            ${
+              d.sc && d.sc["sc@256"]
+                ? pill("sc@256: " + (d.sc["sc@256"].correct ? "yes" : "no"), d.sc["sc@256"].correct ? "ok" : "bad")
+                : ""
+            }
+            <span class="muted small">sample_id: <span class="mono">${escapeHtml(String(rec.sample_id || ""))}</span></span>
+          </div>
+          <div class="grid2">
+            <div class="card">
+              <h2>Problem</h2>
+              <div class="md" id="probMd"></div>
+            </div>
+            <div class="card">
+              <h2>Gold / pass@1</h2>
+              <div class="muted small" style="margin-bottom: 6px">Gold answer</div>
+              <pre>${escapeHtml(String(gold))}</pre>
+              <div class="muted small" style="margin: 10px 0 6px 0">Gold (canonical)</div>
+              <pre class="mono">${escapeHtml(String(goldKey || ""))}</pre>
+              <div class="muted small" style="margin: 10px 0 6px 0">pass@1 extracted</div>
+              <pre class="mono">${escapeHtml(String(p1pred || ""))}</pre>
+              <div class="muted small" style="margin: 10px 0 6px 0">pass@1 (canonical)</div>
+              <pre class="mono">${escapeHtml(String(pass1KeyFor(rec) || ""))}</pre>
+              <details style="margin-top: 10px">
+                <summary class="muted small">pass@1 raw output</summary>
+                <div class="md" id="pass1RawMd" style="margin-top: 8px"></div>
+              </details>
+            </div>
+          </div>
+          <div class="card" style="margin-top: 12px">
+            <h2>First ${maxShow} generations (temp=0.7)</h2>
+            <pre>${escapeHtml(genLines.join("\n") + more)}</pre>
+          </div>
+          <div class="card" style="margin-top: 12px">
+            <h2>Answer distribution (all generations)</h2>
+            <div class="muted small" style="margin-bottom: 8px">
+              ${gens.length ? `${gens.length} generations · ${uniq} unique answers · mode share ${mode ? fmtPct(mode.count / denom) : "—"}` : "No generations"}
+            </div>
+            ${
+              gens.length
+                ? `<div style="overflow:auto; border: 1px solid var(--border); border-radius: 12px">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>answer (grouped)</th>
+                          <th>count</th>
+                          <th>share</th>
+                          <th>gold?</th>
+                          <th>relative</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        ${distRows}
+                      </tbody>
+                    </table>
+                  </div>
+                  ${distNote}`
+                : ""
+            }
+          </div>
+          <div class="card" style="margin-top: 12px">
+            <h2>Self-consistency vote (mode answer)</h2>
+            <div class="muted small" style="margin-bottom: 8px">
+              Mode computed on canonicalized answers; ties broken by first appearance.
+            </div>
+            <div style="overflow:auto; border: 1px solid var(--border); border-radius: 12px">
+              <table>
+                <thead>
+                  <tr>
+                    <th>k</th>
+                    <th>mode</th>
+                    <th>count</th>
+                    <th>share</th>
+                    <th>correct</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${scRows}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="muted small" style="margin-top: 8px">
+            Raw API responses are saved in <span class="mono">requests.jsonl</span> in the same run folder.
+          </div>
+        `;
+
+        // Render markdown (and LaTeX) after DOM insertion.
+        setMarkdown("probMd", prob);
+        setMarkdown("pass1RawMd", String(p1text || p1pred || ""));
+        wireDistributionClicks(rec);
+      }
+
+      async function fetchProgress() {
+        const r = await fetchNoCache(join(basePath, "progress.json"));
+        if (!r.ok) throw new Error(`progress.json fetch failed: ${r.status}`);
+        return r.json();
+      }
+
+      async function fetchResultsIfNeeded(completed) {
+        if (completed === lastCompleted) return;
+        const r = await fetchNoCache(join(basePath, "results.jsonl"));
+        if (!r.ok) return;
+        const text = await r.text();
+        const lines = text.split("\n").filter((ln) => ln.trim().length);
+        const parsed = [];
+        for (const ln of lines) {
+          try {
+            parsed.push(JSON.parse(ln));
+          } catch (e) {}
+        }
+        records = parsed;
+        recordByIndex = new Map(records.map((r) => [r.sample_index, r]));
+        lastCompleted = completed;
+        derivedAgg = computeAggregateFromRecords(records);
+        renderSamplesTable();
+        if (selectedIndex !== null && recordByIndex.has(selectedIndex)) {
+          renderDetails(recordByIndex.get(selectedIndex));
+        }
+      }
+
+      async function tick() {
+        if (!basePath) return;
+        try {
+          const prog = await fetchProgress();
+          renderProgress(prog);
+          await fetchResultsIfNeeded(prog.completed || 0);
+          renderMetrics(derivedAgg || prog.aggregate);
+          $("status").textContent = `OK · ${basePath}`;
+        } catch (e) {
+          $("status").textContent = `Waiting for run… (${e})`;
+        }
+      }
+
+      $("loadBtn").addEventListener("click", async () => {
+        const p = $("runInput").value.trim();
+        if (!p) return;
+        await loadBasePath(p);
+      });
+
+      (async () => {
+        const initial = await detectBasePath();
+        if (!initial) {
+          $("status").textContent = "Could not auto-detect a run. Enter a run path above.";
+          return;
+        }
+        await loadBasePath(initial);
+        setInterval(tick, 1000);
+      })();
+    </script>
+  </body>
+</html>
+
+
